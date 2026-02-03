@@ -1,0 +1,29 @@
+# Donor Deduplication Pipeline Dependencies
+# Install with: pip install -r requirements.txt
+
+# Database
+supabase>=2.0.0
+psycopg2-binary>=2.9.0
+
+# Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Name Parsing & Fuzzy Matching
+nameparser>=1.1.0
+python-Levenshtein>=0.21.0
+fuzzywuzzy>=0.18.0
+recordlinkage>=0.15
+
+# Address Normalization
+usaddress>=0.5.10
+pyap>=0.3.1
+
+# Utilities
+python-dotenv>=1.0.0
+tqdm>=4.65.0
+click>=8.1.0
+
+# Optional: For phonetic matching
+metaphone>=0.6
+jellyfish>=0.11.0
