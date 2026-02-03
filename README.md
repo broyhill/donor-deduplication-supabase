@@ -1,93 +1,96 @@
-# donor-deduplication-supabase
+# Donor Deduplication and Identity Resolution System
 
-Donor deduplication and standardization for political contributions using Supabase, SQL, and fuzzy name matching.
-
-## Overview
-
-This project provides tools for deduplicating donor records from NC Board of Elections campaign finance data. It assigns unique `master_person_id` values to link multiple donation records to the same individual donor.
+This repository powers a scalable donor data cleaning and deduplication pipeline for political contributions, using Supabase and Python.
 
 ## Features
 
-- **6-part name parsing**: Parses names into prefix, first, middle, last, suffix, and full name
-- **Address normalization**: Standardizes street addresses, cities, states, and ZIP codes
-- **Blocking-based matching**: Efficient deduplication using blocking keys
-- **Deterministic master IDs**: Consistent ID generation using SHA-256 hashing
-- **Fuzzy matching**: Jaro-Winkler similarity for name matching
+- **Name Matching**: Resolves thousands of name variants to a single identity using the `person_aliases` table.
+- **Spouse Detection**: Automatically infers spousal relationships using address + last name.
+- **Household Grouping**: Generates stable `household_id`s for grouping donors at the same address.
+- **Pipeline Integration**: Python-based intake pipeline cleans, normalizes, and enriches any user-uploaded donor file.
+- **Fuzzy Matching**: Handles unmatched names with configurable similarity thresholds.
 
 ## Project Structure
 
 ```
-donor-deduplication-supabase/
-├── data/
-│   ├── raw/           # Raw input data files
-│   └── cleaned/       # Processed output files
-├── docs/
-│   └── schema_reference.md  # Database schema documentation
-├── scripts/
-│   ├── parse_names.py           # Name parsing utilities
-│   ├── normalize_addresses.py   # Address standardization
-│   └── assign_master_ids.py     # Master ID assignment
-├── sql/
-│   ├── create_tables.sql        # Table creation DDL
-│   ├── update_master_person_ids.sql  # ID update queries
-│   └── validate_schema.sql      # Schema validation
-├── .gitignore
-└── README.md
+scripts/
+  run_pipeline.py           # Master runner
+  parse_names.py              # Name parser
+  normalize_addresses.py      # Address parser
+  assign_master_ids.py        # Alias matcher
+  infer_spouses.py            # Spouse detection
+  household_id_builder.py     # UUID generator
+  fuzzy_match_unknowns.py     # Fuzzy matching for unresolved names
+data/
+  cleaned/person_aliases.csv  # Canonical name -> master ID mapping
+sql/
+  create_tables.sql           # DB schema setup
+  load_person_aliases.sql     # Bulk import of aliases
+  detect_spouses.sql          # Address-based spouse detection
+  update_master_person_ids.sql# Generates master IDs
+  views.sql                   # Common query views
+requirements.txt              # Python dependencies
+.env.example                  # Environment template
 ```
 
-## Usage
+## Data Model
 
-### Name Parsing
+### `nc_boe_donations_raw`
+| Column             | Purpose                                     |
+|--------------------|---------------------------------------------|
+| donor_name         | Raw input name                              |
+| normalized_name    | Cleaned and standardized                    |
+| master_person_id   | Linked identity via aliases                 |
+| address            | Raw address field                           |
+| house_number       | Parsed house number                         |
+| street_name        | Parsed street name                          |
+| zip_code           | Used in clustering                          |
+| household_id       | UUID assigned per unique address cluster    |
 
-```python
-from scripts.parse_names import parse_name
+### `person_aliases`
+Stores canonical aliases and match confidence per identity.
 
-result = parse_name('DR. JAMES ARTHUR POPE JR')
-# Returns: {
-#   'prefix': 'DR',
-#   'first_name': 'JAMES',
-#   'middle_name': 'ARTHUR',
-#   'last_name': 'POPE',
-#   'suffix': 'JR',
-#   'full_name': 'DR. JAMES ARTHUR POPE JR'
-# }
+### `donor_spouses`
+Stores inferred spouse pairs based on household and name similarity.
+
+## Setup Instructions
+
+1. Clone the repo
+2. Install Python dependencies:
+```bash
+pip install -r requirements.txt
+```
+3. Copy environment template:
+```bash
+cp .env.example .env
+```
+4. Edit `.env` with your Supabase credentials
+5. Run the pipeline:
+```bash
+python scripts/run_pipeline.py --full
 ```
 
-### Address Normalization
+## Outputs
 
-```python
-from scripts.normalize_addresses import normalize_full_address
+- `cleaned_donor_file_enriched.csv`
+- `inferred_spouses.csv`
+- `household_summary.csv`
 
-result = normalize_full_address(
-    '123 Main Street',
-    'Raleigh',
-    'North Carolina',
-    '27601-1234'
-)
-# Returns: {
-#   'street_normalized': '123 MAIN ST',
-#   'city_normalized': 'RALEIGH',
-#   'state_normalized': 'NC',
-#   'zip_normalized': '27601'
-# }
-```
+## SQL Views
 
-## Database Schema
+The `sql/views.sql` file includes common query views:
+- `v_total_by_person` - Total donations per person
+- `v_total_by_household` - Total donations per household
+- `v_unmatched_donors` - Donors without master_person_id
+- `v_donor_spouses` - Donor-to-spouse links
 
-See [docs/schema_reference.md](docs/schema_reference.md) for complete schema documentation.
+## Next Steps
 
-### Key Tables
-
-- `nc_boe_donations_raw`: Raw donation records from NC BOE
-- `donor_master`: Deduplicated master donor records
-- `donation_to_master_mapping`: Links donations to master records
-
-## Requirements
-
-- Python 3.8+
-- Supabase account
-- PostgreSQL (via Supabase)
+This system is designed to support:
+- Fuzzy name resolution for unmatched entries
+- Real-time feedback in your upload UI
+- Voter file syncing (Data Trust, etc.)
 
 ## License
 
-Private repository - All rights reserved.
+MIT License
